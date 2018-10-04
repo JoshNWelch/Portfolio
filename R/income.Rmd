@@ -1,0 +1,153 @@
+---
+title: "1994 Income Analysis"
+author: "Joshua Welch"
+date: "May 1, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(e1071)
+dat=read.csv("https://raw.githubusercontent.com/grbruns/cst383/master/1994-census-summary.csv")
+```
+## Goal
+   The goal of this report is to use naive bayes classifier to predict whether an individuals income is above or below $50,000.
+
+
+## Exploration
+   The data set contains over 32 thousand rows with 16 columns of data. The data contains both numeric and categorical data. Out of all the data there is only about 7% of rows that are NA. The Scatter plot below shows correlation between education, age, capital gain, and hours worked per week. The plots below show the age of individuals that make more and less than 50 thousand. These plots and hour of the week plots give us an idea of which ages and hours are more common with earning more than 50 thousand. The problem with this is some ages and hours per a week like 40 appear much more than others in the data set, so we need to take this into account. 
+
+
+```{r 1994 Census}
+#summary(dat)
+#str(dat)
+nrow(dat)
+sum(is.na(dat))
+(nrow(dat)-sum(complete.cases(dat)))/nrow(dat)
+plot(dat[,c("education_num", "age", "capital_gain", "hours_per_week" )])
+
+par(mfrow=c(2,2))
+hist(dat[dat$label==">50K",]$age, main="Age of Individuals with income >50K", xlab="Age", col="blue")
+hist(dat[dat$label=="<=50K",]$age, main="Age of Individuals with income <=50K", xlab="Age", col="blue")
+hist(dat[dat$label==">50K",]$hours_per_week, main="Hours per week with income >50K", xlab="Hours", col="blue")
+hist(dat[dat$label=="<=50K",]$hours_per_week, main="Hours per week with income <=50K", xlab="Hours", col="blue")
+
+```
+
+## Preprocessing and Cleaning
+
+```{r processing, echo=FALSE}
+dat=dat[complete.cases(dat),]
+dat=dat[,c(-1,-4)]
+```
+
+
+   In the preprocessing I decided to drop all NA rows. I also removed the usid column which is the same as the row number. The final column I dropped was the fnlwgt column, it calculates a number based on the final weight demographic characteristics based on age, sex, race and state. This number doesn't provide any benefit for our model.
+
+## Splitting the data
+
+  Here I split the data into 70% training and 30% testing.
+
+```{r split, echo=FALSE}
+nrows=nrow(dat)
+tr_rows=sample(1:nrows,0.7*nrows)
+tr_dat=dat[tr_rows,]
+te_dat=dat[-tr_rows,]
+```
+
+
+## Model 1
+  Model 1 just uses all the columns to create our Naive Bayes model. It yields about 82% accuracy.
+
+```{r Model, echo=TRUE}
+fit=naiveBayes(label ~ . , data=tr_dat)
+predicted=predict(fit, te_dat)
+actual=te_dat$label
+conf_mtr=table(actual,predicted)
+conf_mtr
+accuracy=mean(actual==predicted)
+accuracy
+#summary(fit)
+#fit
+predicted=as.numeric(predicted)
+actual=as.numeric(actual)
+plot(density(predicted[actual == 1]), col="red", main="")
+lines(density(predicted[actual == 2]), col="green")
+legend("topright", c("Less than 50K","Greater than 50K"), col= c("red","green"), lty=1)
+
+te_errs = c()
+tr_errs = c()
+te_actual = te_dat$label
+tr_sizes = seq(100, nrow(tr_dat), length.out=10)
+for (tr_size in tr_sizes) {
+  tr_dat1 = tr_dat[1:tr_size,]
+  tr_actual = tr_dat1$label
+
+  fit=naiveBayes(label ~ . , data=tr_dat)
+  #training error
+
+  tr_predicted = predict(fit, tr_dat1)
+  err = mean(tr_actual != tr_predicted)
+  tr_errs = c(tr_errs, err)
+  #test error
+  
+  te_predicted = predict(fit, te_dat)
+  err = mean(te_actual != te_predicted)
+  te_errs = c(te_errs, err)
+
+}
+
+plot(tr_sizes, tr_errs,  col="blue", main="", type="b", ylim=c(0.17,.19))
+lines(tr_sizes,te_errs, col="green", type="b")
+legend("topright", c("Training Error","Test Error"), col= c("blue","green"), lty=1)
+```
+
+
+## Model 2
+  For model 2 I decided to use the features: age, education, occupation, and hours per week. With just these four features the accuracy averages about 80%.
+```{r Model2, echo=TRUE}
+fit=naiveBayes(label ~ age + education + occupation + hours_per_week, , data=tr_dat)
+predicted=predict(fit, te_dat)
+actual=te_dat$label
+conf_mtr=table(actual,predicted)
+conf_mtr
+accuracy=mean(actual==predicted)
+accuracy
+#summary(fit)
+#fit
+predicted=as.numeric(predicted)
+actual=as.numeric(actual)
+plot(density(predicted[actual == 1]), col="red", main="")
+lines(density(predicted[actual == 2]), col="green")
+legend("topright", c("Less than 50K","Greater than 50K"), col= c("red","green"), lty=1)
+
+te_errs = c()
+tr_errs = c()
+te_actual = te_dat$label
+tr_sizes = seq(100, nrow(tr_dat), length.out=10)
+for (tr_size in tr_sizes) {
+  tr_dat1 = tr_dat[1:tr_size,]
+  tr_actual = tr_dat1$label
+
+  fit=naiveBayes(label ~ . , data=tr_dat)
+  #training error
+
+  tr_predicted = predict(fit, tr_dat1)
+  err = mean(tr_actual != tr_predicted)
+  tr_errs = c(tr_errs, err)
+  #test error
+  
+  te_predicted = predict(fit, te_dat)
+  err = mean(te_actual != te_predicted)
+  te_errs = c(te_errs, err)
+
+}
+
+plot(tr_sizes, tr_errs,  col="blue", main="", type="b", ylim=c(0.17,.19))
+lines(tr_sizes,te_errs, col="green", type="b")
+legend("topright", c("Training Error","Test Error"), col= c("blue","green"), lty=1)
+```
+
+
+## Conclusion
+Both learning curves show an interesting curves that cross each other. Both learning curves have a high bias. The majority of individuals make less than 50 thousand. The problem with Naive Bayes is the weights it creates from this data set for people who make more than 50 thousand it may not be completely accurate. 

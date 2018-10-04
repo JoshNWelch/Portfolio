@@ -1,0 +1,195 @@
+---
+title: "Using Tree's to predict Heart Disease"
+author: "Joshua Welch"
+date: "April 24, 2018"
+output: html_document
+---
+
+<!-- change echo=FALSE to echo=TRUE to show code -->
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(prompt=TRUE, comment="", echo=TRUE)
+```
+
+
+```{r collapse=TRUE, warning=FALSE}
+library(rpart)
+library(rpart.plot)
+library(maptree)
+# the following utility files can be found attached to the assignment
+source("https://raw.githubusercontent.com/grbruns/cst383/master/lin-regr-util.R")
+source("https://raw.githubusercontent.com/grbruns/cst383/master/class-util.R")
+```
+
+### Reading and preprocessing the data
+Here we are pulling in the data and changing the column names. Then we are setting the column "output" to factor.
+
+```{r}
+heart = read.table("https://raw.githubusercontent.com/grbruns/cst383/master/heart.dat", quote = "/")
+names(heart) <- c("AGE", "SEX", "CHESTPAIN", "RESTBP", "CHOL",
+                  "SUGAR", "ECG", "MAXHR", "ANGINA", "DEP", "EXERCISE", "FLUOR",
+                  "THAL", "OUTPUT")
+names(heart) = tolower(names(heart))
+
+# convert output to factor
+heart$output = factor(heart$output)
+```
+
+### Data exploration
+Looking at the data there is 270 rows of data with 14 columns. 
+
+```{r Exploration, echo=TRUE}
+#str(heart)
+#summary(heart)
+```
+
+```{r exploration scat, echo=TRUE}
+plot(heart[,c("age", "chol", "maxhr", "chestpain")])
+```
+
+  Here I am looking at a scatterplot of age, cholesterol, maxhr, and chestpain to see what or if their is any correlations.
+
+```{r exploration hist, echo=TRUE}
+hist(heart$chol, main="Cholesterol of test subjects", xlab="Cholesterol", col="blue")
+```
+### Model #1
+
+Model 1 is created simply using all of the columns, which is generraly not the best idea but gives a good idea of the data to see which columns are more useful than others. Since the data set is rather small this is easy to run, where a larger data set could be problematic.
+
+
+```{r}
+# training and test sets
+set.seed(132)
+split = split_data(heart)
+tr_dat = split[[1]]
+te_dat = split[[2]]
+```
+
+
+
+```{r Model1, echo=TRUE}
+fit=rpart(output~., data=tr_dat, method="class")
+parmar=c(1,1,1,2)
+prp(fit, extra=106, varlen=-10, main="Regression tree for Heart Disease", box.col=c("green", "blue")[fit$frame$yval])
+summary(fit)
+```
+### Classifying test data
+
+
+```{r Classifying, echo=TRUE}
+predicted=predict(fit,te_dat, type = "class")
+actuals=te_dat$output
+```
+### Assessing the model
+
+Here we loop through the data testing different training data and test data sizes.
+
+```{r Assess1, echo=TRUE}
+
+accuracy=mean(actuals==predicted)
+accuracy
+conf_matrix=table(actuals, predicted)
+conf_matrix
+
+te_errs = c()
+tr_errs = c()
+te_actual = te_dat$output
+tr_sizes = seq(100, nrow(tr_dat), length.out=10)
+for (tr_size in tr_sizes) {
+  tr_dat1 = tr_dat[1:tr_size,]
+  tr_actual = tr_dat1$output
+
+  fit=rpart(output~., data=tr_dat1, method="class")
+  #training error
+
+  tr_predicted = predict(fit, tr_dat1, type="class")
+  err = mean(tr_actual != tr_predicted)
+  tr_errs = c(tr_errs, err)
+  #test error
+  
+  te_predicted = predict(fit, te_dat, type="class")
+  err = mean(te_actual != te_predicted)
+  te_errs = c(te_errs, err)
+
+}
+
+plot(tr_sizes, tr_errs,  col="blue", main="", type="b", ylim=c(0,.6))
+lines(tr_sizes,te_errs, col="green", type="b")
+legend("topright", c("Training Error","Test Error"), col= c("blue","green"), lty=1)
+```
+
+  The first model shows that as training size increases the training errors decrease. The plot shows the model yeilds a high bias with low variance.
+### Model 2
+
+I chose to use chestpain + cholesterol + age + maxhr to create the second model.
+
+```{r Model2, echo=TRUE}
+fit2=rpart(output~chestpain + chol + age + maxhr, data=tr_dat, method="class")
+parmar=c(1,1,1,2)
+prp(fit2, extra=106, varlen=-10, main="Regression tree for Heart Disease", box.col=c("green", "blue")[fit2$frame$yval])
+#summary(fit2)
+```
+
+```{r Classifying2, echo=TRUE}
+predicted=predict(fit2,te_dat, type = "class")
+actuals=te_dat$output
+```
+
+```{r Assess2, echo=TRUE}
+
+accuracy=mean(actuals==predicted)
+accuracy
+conf_matrix=table(actuals, predicted)
+conf_matrix
+
+te_errs = c()
+tr_errs = c()
+te_actual = te_dat$output
+tr_sizes = seq(100, nrow(tr_dat), length.out=10)
+for (tr_size in tr_sizes) {
+  tr_dat1 = tr_dat[1:tr_size,]
+  tr_actual = tr_dat1$output
+
+  fit2=rpart(output~chestpain + chol + age + maxhr, data=tr_dat1, method="class")
+  #training error
+
+  tr_predicted = predict(fit2, tr_dat1, type="class")
+  err = mean(tr_actual != tr_predicted)
+  tr_errs = c(tr_errs, err)
+  #test error
+  
+  te_predicted = predict(fit2, te_dat, type="class")
+  err = mean(te_actual != te_predicted)
+  te_errs = c(te_errs, err)
+
+}
+
+plot(tr_sizes, tr_errs,  col="blue", main="", type="b", ylim=c(0,.6))
+lines(tr_sizes,te_errs, col="green", type="b")
+legend("topright", c("Training Error","Test Error"), col= c("blue","green"), lty=1)
+```
+
+
+  The second plot has a larger gap than the first and comes together much slower than the first model. This model has a high variance as opposed to the high bias of the first.
+
+
+##Conclusion
+The models are very similar, but the second model isn't using very good features yielding a less accurate model. To improve I would drop cholestoral and age. I would then add thal and fluor.
+======================
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

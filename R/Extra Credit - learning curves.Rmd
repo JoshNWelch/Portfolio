@@ -1,0 +1,260 @@
+---
+title: "Extra Credit - learning curves"
+author: "Joshua Welch"
+date: "April 18, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#
+
+# learning curve lab, using kNN and German credit data
+
+#
+
+
+library(caret)
+
+
+# read and preprocess data
+
+
+dat = read.csv("https://raw.githubusercontent.com/grbruns/cst383/master/german-credit.csv")
+
+
+# create bad loan variable
+
+bad.loan = factor(dat$good.loan - 1)
+
+
+# use only numeric data, and scale it
+
+dat = dat[ ,c("duration.in.months", "amount", "percentage.of.disposable.income", "at.residence.since",
+
+              "age.in.years", "num.credits.at.bank")]
+
+
+dat = data.frame(scale(dat))
+
+
+# add bad loan variable to data frame
+
+dat$bad.loan = bad.loan
+
+
+# structure of the data
+
+
+str(dat)
+
+
+# create training and test sets
+
+
+tr_rows = sample(nrow(dat), nrow(dat)*.8)
+
+tr_dat = dat[tr_rows,]
+
+te_dat = dat[-tr_rows,]
+
+
+```
+
+```{r plot, echo=TRUE}
+# see how knn classifier works as training size changes
+
+
+ks = c(1, 3, 5, 9)
+par(mfrow=c(2,2))
+
+for(k in ks){
+
+te_errs = c()
+
+tr_errs = c()
+
+te_actual = te_dat$bad.loan
+
+tr_sizes = seq(100, nrow(tr_dat), length.out=10)
+
+
+  
+for (tr_size in tr_sizes) {
+
+  tr_dat1 = tr_dat[1:tr_size,]
+
+  tr_actual = tr_dat1$bad.loan
+
+  fit = knn3(bad.loan ~ duration.in.months + amount, data=tr_dat1, k=k)
+
+
+  # error on training set
+
+  tr_predicted = predict(fit, tr_dat1, type="class")
+
+  err = mean(tr_actual != tr_predicted)
+
+  tr_errs = c(tr_errs, err)
+
+ 
+
+  # error on test set
+
+  te_predicted = predict(fit, te_dat, type="class")
+
+  err = mean(te_actual != te_predicted)
+
+  te_errs = c(te_errs, err)
+
+}
+
+
+#
+
+
+
+
+# Plot learning curve here
+
+plot(tr_sizes, tr_errs,  col="blue", main=k, type="b", ylim=c(0,.8))
+lines(tr_sizes,te_errs, col="green", type="b")
+legend("topright", c("Training Error","Test Error"), col= c("blue","green"), lty=1)
+#
+
+}
+```
+
+## Explain the curves you get.  For example, what's with the low training error when k = 1?
+The low training error when k=1 is a result of overfitting that allows for the model to fit perfectly to the data leaving no error. As k increases we see our training error increase, while the same time our test error is decreasing. From this plot a larger number like 9 would be the best k to choose to have a better model with lower test error.
+
+## What do the learning curves tell you?   Write some sentences to explain what the learning curves tell you about bias and variance.
+When we start off with using k=1 are model is too simple and flexes to our data yeilding in high variance and a low bias. As k increases our variance starts to go down as our model becomes less flexible. At the same time our bias is increasing as k increases.
+
+
+##Model 2
+```{r Model2 Income & Age, echo=TRUE}
+par(mfrow=c(2,2))
+
+for(k in ks){
+
+te_errs = c()
+
+tr_errs = c()
+
+te_actual = te_dat$bad.loan
+
+tr_sizes = seq(100, nrow(tr_dat), length.out=10)
+
+
+  
+for (tr_size in tr_sizes) {
+
+  tr_dat1 = tr_dat[1:tr_size,]
+
+  tr_actual = tr_dat1$bad.loan
+
+  fit = knn3(bad.loan ~ percentage.of.disposable.income + age.in.years, data=tr_dat1, k=k)
+
+
+  # error on training set
+
+  tr_predicted = predict(fit, tr_dat1, type="class")
+
+  err = mean(tr_actual != tr_predicted)
+
+  tr_errs = c(tr_errs, err)
+
+ 
+
+  # error on test set
+
+  te_predicted = predict(fit, te_dat, type="class")
+
+  err = mean(te_actual != te_predicted)
+
+  te_errs = c(te_errs, err)
+
+}
+
+
+#
+
+
+
+
+# Plot learning curve here
+
+plot(tr_sizes, tr_errs,  col="blue", main=k, type="b", ylim=c(0,.8))
+lines(tr_sizes,te_errs, col="green", type="b")
+legend("topright", c("Training Error","Test Error"), col= c("blue","green"), lty=1)
+#
+
+}
+```
+This second model yields little to no improvement and is even slightly worst than the first one for its test error rate. I created a model around percentage.of.disposable.income + age.in.years which didn't give an improvement than the first one.
+
+  
+## Model 3
+
+```{r Model3 model 1 + 2, echo=TRUE}
+par(mfrow=c(2,2))
+
+for(k in ks){
+
+te_errs = c()
+
+tr_errs = c()
+
+te_actual = te_dat$bad.loan
+
+tr_sizes = seq(100, nrow(tr_dat), length.out=10)
+
+
+  
+for (tr_size in tr_sizes) {
+
+  tr_dat1 = tr_dat[1:tr_size,]
+
+  tr_actual = tr_dat1$bad.loan
+
+  fit = knn3(bad.loan ~ percentage.of.disposable.income + age.in.years + duration.in.months + amount, data=tr_dat1, k=k)
+
+
+  # error on training set
+
+  tr_predicted = predict(fit, tr_dat1, type="class")
+
+  err = mean(tr_actual != tr_predicted)
+
+  tr_errs = c(tr_errs, err)
+
+ 
+
+  # error on test set
+
+  te_predicted = predict(fit, te_dat, type="class")
+
+  err = mean(te_actual != te_predicted)
+
+  te_errs = c(te_errs, err)
+
+}
+
+
+#
+
+
+
+
+# Plot learning curve here
+
+plot(tr_sizes, tr_errs,  col="blue", main=k, type="b", ylim=c(0,.8))
+lines(tr_sizes,te_errs, col="green", type="b")
+legend("topright", c("Training Error","Test Error"), col= c("blue","green"), lty=1)
+#
+
+}
+```
+
+This 3rd model I decided to combine the first and second models by looking at all 4 columns. This model does perform the best of the 3 having the lowest test error rate, but the improvement isn't huge and for a larger data set the first model might be prefered.

@@ -1,0 +1,125 @@
+---
+title: "Montgomery County Crash Data"
+authors: "Joshua Welch"
+date: "April 6, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggmap)
+library(ggplot2)
+```
+
+## Intro:
+   We will be exploring the data to find if substance abuse affects fatal injuries. We will also look at various 
+frequencies of different events and looking at maps of crash locations to find correlations.
+
+## Data:
+   The data that we are looking at is Crash Reported Drivers data. The data set provides information about the time, location, and severity of the accident. The data set also provides other data about the driver and road conditions. The data is provided by Montgomery County, Maryland. 
+
+## Initial data exploration:
+   For initial data exploration, we did a summary of the data. We looked at the number of rows which is 65,841 with 33 columns.  We then looked at the data's columns and tried to come up with possible relations between them.  For example, how often drug abuse is involved in accidents being fatal, or the condition of the car and how that related to the severity of injuries. We found it odd that their was only 1 na data after further inspection we discovered there was many rows with missing data or had values like "N/A".
+
+## Data cleaning and preprocessing:
+   For preprocessing our data, we chose only to focus on the data that was in the columns we would be using to make our plots. Both the longitude and latitude were used in map plots and if any data is missing or N/A it simply wouldn't appear. We needed to standarized the time to put it in a more easy to use format. We used is.na and complete.cases to see how many NA's were in the data set, this resulted in only 1 row being removed from the data. The other column we looked at was Driver.Substance.Abuse, in this column there was over 10,000 N/A values. We decided to remove all the N/A rows in order to get a better depiction of Driver's substance abuse.  
+
+## Data exploration and visualization:
+
+```{r Frequency, echo=TRUE}
+
+
+dat=read.csv("Crash_Reporting_-_Drivers_Data.csv")
+#summary(dat)
+#nrow(dat)
+#names(dat)
+#sum(is.na(dat))
+dat=dat[complete.cases(dat),]
+dat=dat[!(dat$Driver.Substance.Abuse=="N/A"),]
+dat$dtime=strptime(as.character(dat$Crash.Date.Time), "%m/%d/%Y %I:%M:%S %p", tz="America/New_York")
+hours=dat$dtime$hour
+barplot(table(hours), col="green2", main="Accident Frequency (hour)")
+
+```
+
+ This plot shows the relationship between the time of day (0:00 to 24:00) and how many crashed were recorded per hour. Based on these findings, we concluded that most accidents happened near the hours when people are going to work, and when people are coming out of work.  There's also a rapid decline of accidents after 19 till 4, because there's fewer people on the way back from work and on the road overall
+
+```{r Frequency Contributed, echo=TRUE}
+plot(table(hours,dat$Driver.Substance.Abuse=="ALCOHOL CONTRIBUTED"), col=c("black","red"), main="Accident Frequency with Alcohol Contributed")
+```
+  
+This plot tests how often alcohol was consumed by someone, and deemed the cause of the accident
+The interesting thing about this plot is how alcohol is starts to pick up after 19:00, until 3:00 where it starts to drop. We predicted that people have a tendency to drink more often at night than in the daytime, and that it's harder to avoid a crash if someone is drunk during the night compared to daytime.
+
+```{r Frequency Present, echo=TRUE}
+plot(table(hours,dat$Driver.Substance.Abuse=="ALCOHOL PRESENT"), col=c("black","red"), main="Accident Frequency with Alcohol Present")
+```
+
+Another graph showing how often alcohol was present during the accident, but not deemed the cause of it.
+It's interesting how under half the cases that did have alcohol, it was deemed that alcohol did not cause the crash, at least compard to the last graph.
+
+```{r Frequency Fatal, echo=TRUE}
+fatal=dat[dat$ACRS.Report.Type=="Fatal Crash",]
+fhour=fatal$dtime$hour
+barplot(table(fhour), col="orange3", main="Fatal Accident Frequency by hour")
+```
+
+Here we explored the idea of how often fatal crashes happened during the day, assuming that an accident occured.
+We assumed earlier that certain times of the day will have more accidents because of people rushing to and from work.  And that seems to be the case with the sudden rise of fatal crashes at hours 7:00, 11:00 and 18:00-19:00. We also assume that the hours of 23:00 till 2:00 are caused by people driving drunk.  We can differ this because the curve at 23:00 spikes up as high as it did from our last graph.
+
+```{r Fatal with Substance Abuse, echo=TRUE}
+fatal = which(dat$Injury.Severity == "FATAL INJURY")
+barData = dat$Driver.Substance.Abuse[fatal]
+for(index in 1:length(barData))
+  if(barData[index] == "N/A")  barData[index] = "UNKNOWN"
+barData = factor(barData)
+barplot(sort(table(barData)), las=1, col="firebrick", ylab="Death Count", main = "Fatal Injury by Substance Use")
+```
+
+Here we explored the idea of drugs and how or if they affected the occurances of fatal injuries recorded
+Unfortunately, the data set has only 49 recorded cases of a fatal injury occuring.  So we can't make any solid predictions that drugs make it more likely to cause a serious or lethal injury in a crash.
+  
+  
+##Maps
+Accidents by Location and Collision Type
+
+```{r Location, echo=TRUE}
+map=get_map(c(-77.12, 39.105), maptype = "road", zoom=11)
+p=ggmap(map)
+p + geom_point(data=dat, aes(Longitude, Latitude, color=dat$ACRS.Report.Type), size=1, alpha=0.5, show.legend = TRUE)+labs(color= "Collision Type") + scale_color_manual(values=rainbow(3))
+```
+  
+   As you can see from the map there are so many points its hard to differentiate or see any correlations while looking at all Collision types.  
+```{r Location Type All, echo=TRUE}
+fatal=dat[dat$ACRS.Report.Type=="Fatal Crash",]
+injury=dat[dat$ACRS.Report.Type=="Injury Crash",]
+p + geom_point(data=fatal, aes(Longitude, Latitude), color="red", size=2, alpha=0.5) + geom_point(data=injury, aes(Longitude, Latitude), color="green", size=1, alpha=0.5)
+```
+  
+Collision Type:  
+Red=Fatal  
+Green=Injury
+    
+   This map adds some clarity when removing property damage crashes you can see the major roads and majority accidents are in the more populated areas.  
+
+```{r Location Fatal&Injury, echo=TRUE}
+p + geom_point(data=fatal, aes(Longitude, Latitude), color="red", size=2, alpha=0.5)
+```
+  
+Collision Type:  
+Red=Fatal
+    
+   While looking at only fatal accidents the only we are able to concluded is the majority of fatal accidents happen in town rather than the outskirts. These accidents also occured on smaller streets rather than the main roads. It should be noted that this data is a very small data set so only speculations can be made with no conclusion until a larger data set is obtained.   
+
+```{r Location Fatal}
+alcoholP=dat[dat$Driver.Substance.Abuse=="ALCOHOL PRESENT",]
+p + geom_point(data=alcoholP, aes(Longitude, Latitude), color="black", size=1, alpha=0.5)
+```
+  
+Black=Alcohol Present
+    
+   This map shows locations of collisions when alcohol is present. It is clear to see the majority of points are downtown likely closer to places that serve alcohol, but are are a fair amount of points near the outskirts of town as well.  
+  
+
+## Conclusions.
+   Overall we learned that it's rather difficult to predict how what made a good graph without plotting it, or knowing what type of graph suits the data best (Histograms, barplot, normal plotting, map plotting for instance).  It was also difficult to properly display a graph if one or both the values didn't have many values.  For example, trying to look up crashes that were fatal could look much different in another city, country or in the US overall because the sample size is too small to make an over arching predition based on our findings.  One of the issues we faced was getting the map data to work properly. 
